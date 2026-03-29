@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0F172A">
+    <title>NutriLens - AI Calorie Tracker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        :root {
+            --bg-primary: #FAFAF8; --bg-secondary: #F5F5F0; --bg-tertiary: #FFFFFF;
+            --text-primary: #2C3E2D; --text-secondary: #6B7B6C; --text-tertiary: #9CA89D;
+            --accent: #7A9E7E; --accent-light: #E8F0E9; --accent-dark: #5C7A5F;
+            --border: #E8E8E3; --warning: #D4A373; --danger: #D47373;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg-primary); color: var(--text-primary); height: 100vh; overflow: hidden; line-height: 1.5;
+        }
+        #app {
+            height: 100vh; width: 100%; max-width: 430px; margin: 0 auto; background: var(--bg-primary);
+            position: relative; overflow: hidden;
+        }
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            overflow-y: auto; overflow-x: hidden; display: none; background: var(--bg-primary); padding-bottom: 100px;
+        }
+        .screen.active { display: block; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Welcome Screen */
+        .welcome-screen {
+            background: linear-gradient(180deg, #0F172A 0%, #1E293B 50%, #0F172A 100%);
+            min-height: 100%; position: relative; overflow-x: hidden; padding-bottom: 40px;
+        }
+        .bg-animated { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+        .gradient-orb { position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.5; }
+        .orb-1 { width: 300px; height: 300px; background: var(--accent); top: -100px; right: -100px; animation: float 8s ease-in-out infinite; }
+        .orb-2 { width: 250px; height: 250px; background: #6B8E9E; bottom: 20%; left: -100px; animation: float 10s ease-in-out infinite reverse; }
+        .orb-3 { width: 200px; height: 200px; background: var(--warning); top: 40%; left: 50%; transform: translateX(-50%); opacity: 0.3; animation: pulse 4s ease-in-out infinite; }
+        @keyframes float { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-20px, 20px) scale(1.1); } }
+        @keyframes pulse { 0%, 100% { opacity: 0.3; transform: translateX(-50%) scale(1); } 50% { opacity: 0.5; transform: translateX(-50%) scale(1.2); } }
+        .food-particles { position: fixed; width: 100%; height: 100%; pointer-events: none; z-index: 1; overflow: hidden; }
+        .food-item { position: absolute; font-size: 24px; opacity: 0.15; animation: food-float 15s linear infinite; }
+        @keyframes food-float { 0% { transform: translateY(100vh) rotate(0deg); opacity: 0; } 10% { opacity: 0.15; } 90% { opacity: 0.15; } 100% { transform: translateY(-100px) rotate(360deg); opacity: 0; } }
+        .welcome-content { position: relative; z-index: 2; padding: 60px 24px 40px; }
+        .logo-section { text-align: center; margin-bottom: 30px; }
+        .app-icon { width: 90px; height: 90px; background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%); border-radius: 24px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 20px 60px rgba(122, 158, 126, 0.4), inset 0 2px 4px rgba(255,255,255,0.3); position: relative; overflow: hidden; }
+        .app-icon::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%); animation: shine 3s infinite; }
+        @keyframes shine { 0% { transform: translateX(-100%) rotate(45deg); } 100% { transform: translateX(100%) rotate(45deg); } }
+        .app-icon svg { width: 45px; height: 45px; stroke: white; stroke-width: 2.5; fill: none; stroke-linecap: round; stroke-linejoin: round; position: relative; z-index: 1; }
+        .welcome-title { font-size: 38px; font-weight: 800; color: white; margin-bottom: 8px; letter-spacing: -1px; }
+        .welcome-subtitle { font-size: 18px; color: rgba(255,255,255,0.7); margin-bottom: 8px; }
+        .welcome-tagline { font-size: 15px; color: rgba(255,255,255,0.5); }
+        .social-proof { display: flex; justify-content: center; gap: 30px; margin: 30px 0; padding: 20px; background: rgba(255,255,255,0.05); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); }
+        .proof-item { text-align: center; }
+        .proof-number { font-size: 28px; font-weight: 800; color: white; display: block; }
+        .proof-label { font-size: 12px; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.5px; }
+        .section-label { font-size: 13px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; text-align: center; font-weight: 600; }
+        .benefits-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .benefit-card { background: rgba(255,255,255,0.08); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.15); border-radius: 16px; padding: 16px; text-align: center; transition: all 0.3s ease; }
+        .benefit-card:active { transform: scale(0.95); background: rgba(255,255,255,0.12); }
+        .benefit-icon { width: 44px; height: 44px; background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; box-shadow: 0 4px 15px rgba(122, 158, 126, 0.3); }
+        .benefit-icon svg { width: 22px; height: 22px; stroke: white; stroke-width: 2; fill: none; }
+        .benefit-title { font-size: 14px; font-weight: 600; color: white; margin-bottom: 4px; }
+        .benefit-desc { font-size: 12px; color: rgba(255,255,255,0.6); line-height: 1.4; }
+        .features-list { margin-bottom: 30px; }
+        .feature-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .feature-row:last-child { border-bottom: none; }
+        .feature-check { width: 22px; height: 22px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .feature-check svg { width: 14px; height: 14px; stroke: white; stroke-width: 3; fill: none; }
+        .feature-text { font-size: 15px; color: rgba(255,255,255,0.9); }
+        .cta-section { padding: 0 24px 40px; position: relative; z-index: 2; }
+        .btn-primary { width: 100%; padding: 20px; background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%); color: white; border: none; border-radius: 16px; font-size: 18px; font-weight: 700; cursor: pointer; margin-bottom: 12px; box-shadow: 0 10px 30px rgba(122, 158, 126, 0.4), inset 0 1px 0 rgba(255,255,255,0.2); transition: all 0.3s ease; position: relative; overflow: hidden; }
+        .btn-primary:active { transform: translateY(2px); box-shadow: 0 5px 15px rgba(122, 158, 126, 0.3); }
+        .btn-secondary { width: 100%; padding: 16px; background: transparent; color: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.2); border-radius: 16px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; }
+        .btn-secondary:active { background: rgba(255,255,255,0.1); }
+        .guarantee-text { text-align: center; margin-top: 16px; font-size: 13px; color: rgba(255,255,255,0.5); }
+
+        /* Home Screen */
+        .header { padding: 60px 24px 20px; background: var(--bg-primary); }
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .logo { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .logo-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+        .logo-icon svg { width: 18px; height: 18px; stroke: white; stroke-width: 2.5; fill: none; }
+        .settings-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--bg-tertiary); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .settings-btn svg { width: 20px; height: 20px; stroke: var(--text-secondary); stroke-width: 2; fill: none; }
+        .consistency-badge { background: var(--accent-light); color: var(--accent-dark); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .consistency-badge svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 2; fill: none; }
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .stat-card { background: var(--bg-tertiary); border-radius: 20px; padding: 20px; border: 1px solid var(--border); position: relative; overflow: hidden; }
+        .stat-card.featured { background: var(--accent); border-color: var(--accent); color: white; }
+        .stat-card.featured .stat-label, .stat-card.featured .stat-value, .stat-card.featured .stat-unit { color: white; }
+        .stat-label { font-size: 12px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; font-weight: 600; }
+        .stat-value { font-size: 28px; font-weight: 300; letter-spacing: -1px; display: flex; align-items: baseline; gap: 4px; }
+        .stat-unit { font-size: 14px; color: var(--text-secondary); font-weight: 400; }
+        .trend-indicator { position: absolute; top: 16px; right: 16px; font-size: 12px; color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 12px; }
+        .ad-banner { background: linear-gradient(135deg, #F5F0E8 0%, #F0E8E0 100%); border: 1px solid var(--border); margin: 0 24px 20px; padding: 16px 20px; border-radius: 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; position: relative; }
+        .ad-label { position: absolute; top: 8px; right: 12px; font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .ad-icon { width: 44px; height: 44px; background: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .ad-icon svg { width: 24px; height: 24px; stroke: var(--accent); stroke-width: 2; fill: none; }
+        .ad-text { flex: 1; }
+        .ad-title { font-weight: 600; font-size: 15px; margin-bottom: 2px; color: var(--text-primary); }
+        .ad-desc { font-size: 13px; color: var(--text-secondary); }
+        .ad-btn { background: var(--accent); color: white; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; }
+        .limit-banner { background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%); border: 1px solid #F59E0B; margin: 0 24px 20px; padding: 14px 20px; border-radius: 16px; display: flex; align-items: center; justify-content: space-between; }
+        .limit-text { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: #92400E; }
+        .limit-text svg { width: 20px; height: 20px; stroke: #92400E; stroke-width: 2; fill: none; }
+        .limit-btn { background: #92400E; color: white; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; }
+        .section-header { padding: 24px 24px 12px; display: flex; justify-content: space-between; align-items: baseline; }
+        .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-tertiary); font-weight: 600; }
+        .section-action { font-size: 14px; color: var(--accent); font-weight: 600; cursor: pointer; }
+        .meal-list { padding: 0 24px; }
+        .meal-item { background: var(--bg-tertiary); border-radius: 16px; padding: 16px 20px; margin-bottom: 12px; border: 1px solid var(--border); display: flex; align-items: center; gap: 16px; cursor: pointer; transition: all 0.2s; }
+        .meal-item:active { transform: scale(0.99); background: var(--bg-secondary); }
+        .meal-thumb { width: 48px; height: 48px; background: var(--bg-secondary); border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+        .meal-thumb svg { width: 24px; height: 24px; stroke: var(--text-secondary); stroke-width: 2; fill: none; }
+        .meal-info { flex: 1; }
+        .meal-title { font-weight: 600; font-size: 16px; margin-bottom: 2px; }
+        .meal-meta { font-size: 13px; color: var(--text-tertiary); display: flex; align-items: center; gap: 6px; }
+        .verified-badge { display: flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 600; }
+        .verified-badge svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 3; fill: none; }
+        .meal-cals { text-align: right; }
+        .meal-cals .value { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+        .meal-cals .label { font-size: 12px; color: var(--text-tertiary); }
+
+        /* Settings */
+        .settings-header { padding: 60px 24px 20px; background: var(--bg-primary); border-bottom: 1px solid var(--border); }
+        .settings-title { font-size: 28px; font-weight: 700; }
+        .settings-label { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-tertiary); font-weight: 600; margin-bottom: 12px; padding: 24px 24px 0; }
+        .setting-item { background: var(--bg-tertiary); border: 1px solid var(--border); margin: 0 24px 12px; padding: 18px 20px; border-radius: 16px; display: flex; align-items: center; gap: 16px; cursor: pointer; transition: all 0.2s; }
+        .setting-item:active { transform: scale(0.99); background: var(--bg-secondary); }
+        .setting-icon { width: 40px; height: 40px; background: var(--accent-light); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .setting-icon svg { width: 20px; height: 20px; stroke: var(--accent); stroke-width: 2; fill: none; }
+        .setting-icon.red { background: #FEE2E2; }
+        .setting-icon.red svg { stroke: var(--danger); }
+        .setting-content { flex: 1; }
+        .setting-title { font-weight: 600; font-size: 16px; margin-bottom: 2px; }
+        .setting-desc { font-size: 13px; color: var(--text-tertiary); }
+        .chevron { color: var(--text-tertiary); }
+        .chevron svg { width: 20px; height: 20px; stroke: currentColor; stroke-width: 2; fill: none; }
+        .security-card { background: linear-gradient(135deg, var(--accent-light) 0%, var(--bg-secondary) 100%); border: 1px solid var(--border); margin: 0 24px 20px; padding: 24px; border-radius: 20px; text-align: center; }
+        .security-icon-large { width: 64px; height: 64px; background: var(--accent); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+        .security-icon-large svg { width: 32px; height: 32px; stroke: white; stroke-width: 2; fill: none; }
+        .security-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+        .security-desc { font-size: 14px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; }
+        .security-email { background: white; padding: 12px 20px; border-radius: 12px; font-size: 15px; font-weight: 600; color: var(--accent-dark); border: 1px solid var(--border); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+        .security-email svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 2; fill: none; }
+
+        /* Help Screen */
+        .help-header { padding: 60px 24px 20px; background: var(--bg-primary); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+        .help-back-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--bg-secondary); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
+        .help-back-btn:active { transform: scale(0.95); background: var(--border); }
+        .help-back-btn svg { width: 20px; height: 20px; stroke: var(--text-primary); stroke-width: 2; fill: none; }
+        .help-title { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+        .help-search-container { padding: 20px 24px; background: var(--bg-primary); }
+        .help-search-box { position: relative; display: flex; align-items: center; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 12px; padding: 0 16px; height: 48px; transition: all 0.2s; }
+        .help-search-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+        .search-icon { width: 20px; height: 20px; stroke: var(--text-tertiary); stroke-width: 2; fill: none; margin-right: 12px; flex-shrink: 0; }
+        .help-search-input { flex: 1; border: none; background: transparent; font-size: 16px; color: var(--text-primary); outline: none; }
+        .help-search-input::placeholder { color: var(--text-tertiary); }
+        .search-clear { width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; }
+        .search-clear svg { width: 16px; height: 16px; stroke: var(--text-tertiary); stroke-width: 2; fill: none; }
+        .help-quick-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 0 24px 24px; }
+        .quick-action-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 8px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 16px; cursor: pointer; transition: all 0.2s; }
+        .quick-action-card:active { transform: scale(0.96); background: var(--bg-secondary); }
+        .quick-action-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .quick-action-icon svg { width: 24px; height: 24px; stroke: white; stroke-width: 2; fill: none; }
+        .quick-action-label { font-size: 12px; font-weight: 600; color: var(--text-primary); text-align: center; }
+        .help-section-title { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-tertiary); font-weight: 600; margin: 0 24px 16px; }
+        .faq-container { padding: 0 24px; margin-bottom: 24px; }
+        .faq-category { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 16px; margin-bottom: 12px; overflow: hidden; transition: all 0.3s; }
+        .faq-category.expanded { box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .faq-category.hidden { display: none; }
+        .faq-category-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; cursor: pointer; transition: background 0.2s; }
+        .faq-category-header:active { background: var(--bg-secondary); }
+        .category-info { display: flex; align-items: center; gap: 12px; }
+        .category-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+        .category-icon svg { width: 20px; height: 20px; stroke: var(--accent); stroke-width: 2; fill: none; }
+        .category-text { display: flex; flex-direction: column; }
+        .category-name { font-weight: 600; font-size: 15px; color: var(--text-primary); }
+        .category-count { font-size: 13px; color: var(--text-tertiary); margin-top: 2px; }
+        .category-chevron { width: 20px; height: 20px; stroke: var(--text-tertiary); stroke-width: 2; fill: none; transition: transform 0.3s; }
+        .faq-category.expanded .category-chevron { transform: rotate(180deg); }
+        .faq-items { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+        .faq-category.expanded .faq-items { max-height: 1000px; transition: max-height 0.5s ease-in; }
+        .faq-item { border-top: 1px solid var(--border); cursor: pointer; transition: background 0.2s; }
+        .faq-item:hover { background: var(--bg-secondary); }
+        .faq-question { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; font-weight: 500; font-size: 14px; color: var(--text-primary); }
+        .faq-chevron { width: 16px; height: 16px; stroke: var(--text-tertiary); stroke-width: 2; fill: none; transition: transform 0.3s; flex-shrink: 0; margin-left: 8px; }
+        .faq-item.active .faq-chevron { transform: rotate(180deg); }
+        .faq-answer { max-height: 0; overflow: hidden; transition: all 0.3s ease-out; padding: 0 20px; font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
+        .faq-item.active .faq-answer { max-height: 300px; padding: 0 20px 16px; transition: all 0.3s ease-in; }
+        .contact-options { padding: 0 24px; margin-bottom: 24px; }
+        .contact-card { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 16px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; }
+        .contact-card:active { transform: scale(0.99); background: var(--bg-secondary); }
+        .contact-icon { width: 48px; height: 48px; background: var(--accent-light); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .contact-icon svg { width: 24px; height: 24px; stroke: var(--accent); stroke-width: 2; fill: none; }
+        .contact-info { flex: 1; }
+        .contact-title { font-weight: 600; font-size: 15px; color: var(--text-primary); margin-bottom: 2px; }
+        .contact-desc { font-size: 13px; color: var(--text-tertiary); }
+        .contact-arrow { width: 20px; height: 20px; stroke: var(--text-tertiary); stroke-width: 2; fill: none; }
+        .system-status { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; margin: 0 24px 24px; background: var(--bg-secondary); border-radius: 12px; font-size: 13px; color: var(--text-secondary); }
+        .status-indicator { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); position: relative; }
+        .status-indicator.online { background: #10B981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); }
+        .status-btn { margin-left: auto; background: transparent; border: none; color: var(--accent); font-weight: 600; font-size: 13px; cursor: pointer; padding: 4px 8px; }
+        .no-results { text-align: center; padding: 40px 24px; color: var(--text-secondary); }
+        .no-results svg { width: 48px; height: 48px; stroke: var(--text-tertiary); stroke-width: 1.5; fill: none; margin-bottom: 16px; }
+        .no-results-title { font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+        .highlight { background: rgba(122, 158, 126, 0.2); padding: 0 2px; border-radius: 2px; font-weight: 600; }
+
+        /* Paywall */
+        .paywall-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; display: none; align-items: flex-end; backdrop-filter: blur(4px); }
+        .paywall-overlay.show { display: flex; }
+        .paywall-sheet { background: var(--bg-tertiary); border-radius: 24px 24px 0 0; padding: 32px 24px; width: 100%; max-width: 430px; max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .paywall-header { text-align: center; margin-bottom: 24px; }
+        .paywall-icon { width: 72px; height: 72px; background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%); border-radius: 24px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+        .paywall-icon svg { width: 36px; height: 36px; stroke: white; stroke-width: 2; fill: none; }
+        .paywall-title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+        .paywall-subtitle { font-size: 15px; color: var(--text-secondary); }
+        .price-block { text-align: center; margin: 24px 0; padding: 24px; background: var(--bg-secondary); border-radius: 16px; }
+        .price { font-size: 48px; font-weight: 300; letter-spacing: -2px; color: var(--text-primary); }
+        .price-period { font-size: 16px; color: var(--text-secondary); }
+        .price-save { display: inline-block; background: var(--accent); color: white; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-top: 12px; }
+        .btn-upgrade { width: 100%; padding: 18px; background: var(--accent); color: white; border: none; border-radius: 14px; font-size: 17px; font-weight: 600; cursor: pointer; margin-bottom: 12px; }
+        .btn-cancel { width: 100%; padding: 16px; background: transparent; color: var(--text-secondary); border: none; font-size: 15px; cursor: pointer; }
+
+        /* Nav */
+        .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: rgba(250, 250, 248, 0.98); backdrop-filter: blur(20px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 12px 0 32px; z-index: 99; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-tertiary); font-size: 11px; cursor: pointer; transition: all 0.2s; background: none; border: none; padding: 8px; font-weight: 500; }
+        .nav-item.active { color: var(--accent); }
+        .nav-icon { width: 24px; height: 24px; stroke: currentColor; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+        .fab { position: fixed; bottom: 100px; right: 24px; width: 56px; height: 56px; background: var(--accent); border-radius: 50%; border: none; color: white; cursor: pointer; box-shadow: 0 4px 20px rgba(122, 158, 126, 0.3); display: flex; align-items: center; justify-content: center; z-index: 100; transition: transform 0.2s; }
+        .fab:active { transform: scale(0.95); }
+        .fab svg { width: 24px; height: 24px; stroke: white; stroke-width: 2; fill: none; }
+        .toast { position: fixed; top: 60px; left: 50%; transform: translateX(-50%) translateY(-100px); background: rgba(44, 62, 45, 0.95); color: white; padding: 14px 28px; border-radius: 30px; font-size: 14px; font-weight: 500; z-index: 3000; opacity: 0; transition: all 0.4s; }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    </style>
+<base target="_blank">
+</head>
+<body>
+    <div id="app">
+        <!-- WELCOME SCREEN -->
+        <div class="screen active welcome-screen" id="welcome-screen">
+            <div class="bg-animated">
+                <div class="gradient-orb orb-1"></div>
+                <div class="gradient-orb orb-2"></div>
+                <div class="gradient-orb orb-3"></div>
+            </div>
+            <div class="food-particles" id="foodParticles"></div>
+            <div class="welcome-content">
+                <div class="logo-section">
+                    <div class="app-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                    </div>
+                    <h1 class="welcome-title">NutriLens</h1>
+                    <p class="welcome-subtitle">AI Calorie Tracker</p>
+                    <p class="welcome-tagline">Snap a photo. Know your macros. Keep your privacy.</p>
+                </div>
+                <div class="social-proof">
+                    <div class="proof-item"><span class="proof-number">2M+</span><span class="proof-label">Meals Logged</span></div>
+                    <div class="proof-item"><span class="proof-number">4.9</span><span class="proof-label">App Store Rating</span></div>
+                    <div class="proof-item"><span class="proof-number">50K+</span><span class="proof-label">Active Users</span></div>
+                </div>
+                <div class="benefits-section">
+                    <div class="section-label">Why NutriLens?</div>
+                    <div class="benefits-grid">
+                        <div class="benefit-card">
+                            <div class="benefit-icon"><svg viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>
+                            <div class="benefit-title">Snap & Track</div>
+                            <div class="benefit-desc">Take a photo, AI calculates calories instantly</div>
+                        </div>
+                        <div class="benefit-card">
+                            <div class="benefit-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                            <div class="benefit-title">Bank-Level Privacy</div>
+                            <div class="benefit-desc">Your data is encrypted. We can't see it. Ever.</div>
+                        </div>
+                        <div class="benefit-card">
+                            <div class="benefit-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+                            <div class="benefit-title">Smart Adaptation</div>
+                            <div class="benefit-desc">Targets auto-adjust based on your metabolism</div>
+                        </div>
+                        <div class="benefit-card">
+                            <div class="benefit-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                            <div class="benefit-title">Save Time</div>
+                            <div class="benefit-desc">3 seconds to log vs 3 minutes in other apps</div>
+                        </div>
+                        <div class="benefit-card">
+                            <div class="benefit-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
+                            <div class="benefit-title">Verified Database</div>
+                            <div class="benefit-desc">No crowdsourced errors. Lab-verified nutrition.</div>
+                        </div>
+                        <div class="benefit-card">
+                            <div class="benefit-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+                            <div class="benefit-title">AI Coach</div>
+                            <div class="benefit-desc">Ask questions, get personalized advice</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="features-list">
+                    <div class="feature-row"><div class="feature-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="feature-text">Works offline - no internet needed</div></div>
+                    <div class="feature-row"><div class="feature-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="feature-text">Syncs with Apple Health & Google Fit</div></div>
+                    <div class="feature-row"><div class="feature-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="feature-text">Family plans up to 6 members</div></div>
+                </div>
+            </div>
+            <div class="cta-section">
+                <button class="btn-primary" onclick="startApp()">Start Free Trial</button>
+                <button class="btn-secondary" onclick="showToast('Restoring purchases...')">Restore Purchase</button>
+                <p class="guarantee-text">7-day free trial • Cancel anytime • No credit card required</p>
+            </div>
+        </div>
+
+        <!-- HOME SCREEN -->
+        <div class="screen" id="home-screen">
+            <div class="header">
+                <div class="header-top">
+                    <div class="logo">
+                        <div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+                        NutriLens
+                    </div>
+                    <button class="settings-btn" onclick="switchTab('settings')">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m4.22-10.22l4.24-4.24M6.34 6.34L2.1 2.1m17.8 17.8l-4.24-4.24M6.34 17.66l-4.24 4.24"/><path d="M23 12h-6m-6 0H1m20.24-4.24l-4.24 4.24M6.34 6.34l-4.24-4.24"/></svg>
+                    </button>
+                </div>
+                <div class="consistency-badge">
+                    <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    <span>12 Week Streak</span>
+                </div>
+                <div class="stats-grid" style="margin-top: 20px;">
+                    <div class="stat-card featured">
+                        <div class="trend-indicator">↓ 0.5lb/wk</div>
+                        <div class="stat-label">Calories Left</div>
+                        <div class="stat-value">760<span class="stat-unit">/2000</span></div>
+                    </div>
+                    <div class="stat-card"><div class="stat-label">Protein</div><div class="stat-value">89<span class="stat-unit">g</span></div></div>
+                    <div class="stat-card"><div class="stat-label">Carbs</div><div class="stat-value">124<span class="stat-unit">g</span></div></div>
+                    <div class="stat-card"><div class="stat-label">Fat</div><div class="stat-value">42<span class="stat-unit">g</span></div></div>
+                </div>
+            </div>
+            <div class="ad-banner" onclick="showPaywall()">
+                <span class="ad-label">Ad</span>
+                <div class="ad-icon"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+                <div class="ad-text"><div class="ad-title">Upgrade to Pro</div><div class="ad-desc">Remove ads & unlock unlimited scans</div></div>
+                <button class="ad-btn">Upgrade</button>
+            </div>
+            <div class="limit-banner">
+                <div class="limit-text">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span>1 of 3 free scans remaining</span>
+                </div>
+                <button class="limit-btn" onclick="showPaywall()">Go Pro</button>
+            </div>
+            <div class="section-header"><span class="section-title">Today's Meals</span><span class="section-action">View All</span></div>
+            <div class="meal-list">
+                <div class="meal-item" onclick="showToast('Grilled Chicken Salad - 420 cal')">
+                    <div class="meal-thumb"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 12L2.5 8.5"/></svg></div>
+                    <div class="meal-info">
+                        <div class="meal-title">Grilled Chicken Salad</div>
+                        <div class="meal-meta"><span>12:45 PM</span><span style="color: var(--border);">|</span><span class="verified-badge"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Verified</span></div>
+                    </div>
+                    <div class="meal-cals"><div class="value">420</div><div class="label">cal</div></div>
+                </div>
+                <div class="meal-item">
+                    <div class="meal-thumb"><svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
+                    <div class="meal-info"><div class="meal-title">Oatmeal with Berries</div><div class="meal-meta">8:30 AM • Database match</div></div>
+                    <div class="meal-cals"><div class="value">340</div><div class="label">cal</div></div>
+                </div>
+                <div class="meal-item">
+                    <div class="meal-thumb"><svg viewBox="0 0 24 24"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg></div>
+                    <div class="meal-info"><div class="meal-title">Protein Shake</div><div class="meal-meta">4:00 PM • Custom recipe</div></div>
+                    <div class="meal-cals"><div class="value">180</div><div class="label">cal</div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SETTINGS SCREEN -->
+        <div class="screen" id="settings-screen">
+            <div class="settings-header"><h1 class="settings-title">Settings</h1></div>
+            <div class="security-card">
+                <div class="security-icon-large"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                <div class="security-title">Security & Privacy</div>
+                <div class="security-desc">End-to-end encrypted. Zero-knowledge architecture. We cannot access your data.</div>
+                <div class="security-email" onclick="copySecurityEmail()">
+                    <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    security@nutrilens.ai
+                </div>
+            </div>
+            <div class="settings-label">Data Controls</div>
+            <div class="setting-item" onclick="showToast('Export requested. Check email.')">
+                <div class="setting-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+                <div class="setting-content"><div class="setting-title">Export My Data</div><div class="setting-desc">Download all data (JSON/CSV)</div></div>
+                <div class="chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+            <div class="setting-item" onclick="showToast('Recovery codes generated')">
+                <div class="setting-icon"><svg viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></div>
+                <div class="setting-content"><div class="setting-title">Recovery Codes</div><div class="setting-desc">Backup access to encrypted data</div></div>
+                <div class="chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+            <div class="settings-label">Support</div>
+            <div class="setting-item" onclick="switchTab('help')">
+                <div class="setting-icon" style="background: #E0E7FF;"><svg viewBox="0 0 24 24" style="stroke: #4F46E5;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+                <div class="setting-content"><div class="setting-title">Help & Support</div><div class="setting-desc">FAQs, contact us, and tutorials</div></div>
+                <div class="chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+            <div class="settings-label">Account</div>
+            <div class="setting-item" onclick="showPaywall()">
+                <div class="setting-icon" style="background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);"><svg viewBox="0 0 24 24" style="stroke: white;"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+                <div class="setting-content"><div class="setting-title">Upgrade to Pro</div><div class="setting-desc">Unlimited scans, no ads, all features</div></div>
+                <div class="chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+            <div class="setting-item" onclick="showToast('Account deleted')">
+                <div class="setting-icon red"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div>
+                <div class="setting-content"><div class="setting-title" style="color: var(--danger);">Delete Account</div><div class="setting-desc">Permanently remove all data</div></div>
+                <div class="chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+            <div style="padding: 24px; text-align: center; color: var(--text-tertiary); font-size: 13px;">NutriLens v1.0 • Build 2026.3.29</div>
+        </div>
+
+        <!-- HELP SCREEN -->
+        <div class="screen" id="help-screen">
+            <div class="help-header">
+                <button class="help-back-btn" onclick="goBack()">
+                    <svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                </button>
+                <h1 class="help-title">Help Center</h1>
+                <div style="width: 40px;"></div>
+            </div>
+            <div class="help-search-container">
+                <div class="help-search-box">
+                    <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" class="help-search-input" placeholder="Search help articles..." id="helpSearchInput" onkeyup="searchHelp()">
+                    <button class="search-clear" id="searchClear" onclick="clearSearch()" style="display: none;">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="help-quick-actions">
+                <div class="quick-action-card" onclick="contactSupport()">
+                    <div class="quick-action-icon" style="background: linear-gradient(135deg, #7A9E7E 0%, #5C7A5F 100%);"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+                    <span class="quick-action-label">Chat Support</span>
+                </div>
+                <div class="quick-action-card" onclick="showToast('Video guides coming soon')">
+                    <div class="quick-action-icon" style="background: linear-gradient(135deg, #6B8E9E 0%, #4A6B7A 100%);"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+                    <span class="quick-action-label">Tutorials</span>
+                </div>
+                <div class="quick-action-card" onclick="resetPassword()">
+                    <div class="quick-action-icon" style="background: linear-gradient(135deg, #D4A373 0%, #B0805C 100%);"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><circle cx="12" cy="16" r="1"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+                    <span class="quick-action-label">Reset Password</span>
+                </div>
+                <div class="quick-action-card" onclick="showToast('Community forum launching next month')">
+                    <div class="quick-action-icon" style="background: linear-gradient(135deg, #9B8AA6 0%, #7A6B85 100%);"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+                    <span class="quick-action-label">Community</span>
+                </div>
+            </div>
+            <div class="help-section-title">Frequently Asked Questions</div>
+            <div class="faq-container" id="faqContainer">
+                <div class="faq-category" data-category="getting-started">
+                    <div class="faq-category-header" onclick="toggleCategory(this)">
+                        <div class="category-info">
+                            <div class="category-icon" style="background: #E8F0E9;"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
+                            <div class="category-text"><div class="category-name">Getting Started</div><div class="category-count">5 articles</div></div>
+                        </div>
+                        <svg class="category-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="faq-items">
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>How do I log my first meal?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Tap the green camera button (bottom right) to snap a photo of your meal. Our AI will analyze it and calculate calories automatically. You can also manually enter foods by tapping "Add Manually" below the camera view.</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>How accurate is the AI calorie estimation?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">NutriLens uses verified nutritional databases and portion recognition trained on over 2 million meal images. Accuracy is typically within 10-15% for homemade meals and 5% for packaged foods. For best results, ensure good lighting and include a reference object (like a coin) for scale.</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>Can I use NutriLens offline?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Yes! Basic logging works offline. Your data syncs when you reconnect. However, AI photo analysis requires an internet connection. Pro users can download offline AI models for specific cuisines in Settings > Advanced > Offline Mode.</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>How do I set my calorie goals?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Goals are automatically calculated based on your profile (age, weight, activity level). To customize, go to Settings > Goals > Manual Override. The app will warn you if your target is below safe metabolic thresholds (1200 cal for women, 1500 for men).</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>What devices sync with NutriLens?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">We sync with Apple Health, Google Fit, Fitbit, Garmin, and Samsung Health. Go to Settings > Integrations to connect. Data is end-to-end encrypted during transfer.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="faq-category" data-category="billing">
+                    <div class="faq-category-header" onclick="toggleCategory(this)">
+                        <div class="category-info">
+                            <div class="category-icon" style="background: #FEF3C7;"><svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+                            <div class="category-text"><div class="category-name">Billing & Pro</div><div class="category-count">4 articles</div></div>
+                        </div>
+                        <svg class="category-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="faq-items">
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>How do I restore my Pro purchase?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Tap "Restore Purchase" on the welcome screen or go to Settings > Account > Restore Purchases. Ensure you're signed in with the same Apple ID/Google account used for the original purchase.</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>Can I share Pro with family?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Yes! Pro supports Family Sharing for up to 6 members. The family organizer needs to subscribe, then members can access Pro features by downloading the app and tapping "Join Family Plan" in settings.</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>How do I cancel my subscription?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">iOS: Settings > [Your Name] > Subscriptions > NutriLens > Cancel. Android: Play Store > Menu > Subscriptions > NutriLens > Cancel. You'll keep Pro access until the billing period ends.</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>Is there a student discount?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Yes! Students get 50% off Pro with valid .edu email. Tap "Student Discount" in the paywall or contact support with your student ID for verification.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="faq-category" data-category="privacy">
+                    <div class="faq-category-header" onclick="toggleCategory(this)">
+                        <div class="category-info">
+                            <div class="category-icon" style="background: #FEE2E2;"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                            <div class="category-text"><div class="category-name">Privacy & Security</div><div class="category-count">4 articles</div></div>
+                        </div>
+                        <svg class="category-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="faq-items">
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>Is my data really encrypted?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Absolutely. We use AES-256 encryption (the same standard as banks) for data at rest and TLS 1.3 for data in transit. We operate on a zero-knowledge architecture—meaning even our engineers cannot view your meal photos or weight logs.</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>How do I export my data?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Go to Settings > Data Controls > Export My Data. You'll receive a secure link via email within 24 hours with JSON and CSV formats. Pro users get instant exports.</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>What happens if I delete my account?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Account deletion is permanent and irreversible. All data including meal history, photos, and profile info is wiped from our servers within 30 days per GDPR/CCPA requirements. Active subscriptions must be canceled separately through your app store.</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>Do you sell my data to advertisers?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Never. We don't sell, rent, or trade your personal data. Our business model is subscription-based, not ad-based. We only process data necessary to provide the service (calorie calculations) and use anonymized aggregate data only for improving our AI models.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="faq-category" data-category="technical">
+                    <div class="faq-category-header" onclick="toggleCategory(this)">
+                        <div class="category-info">
+                            <div class="category-icon" style="background: #E0E7FF;"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+                            <div class="category-text"><div class="category-name">Technical Issues</div><div class="category-count">5 articles</div></div>
+                        </div>
+                        <svg class="category-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="faq-items">
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>Camera not working?</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Ensure NutriLens has camera permissions (Settings > Privacy > Camera on your device). If issues persist, force-close the app and restart. For scanning issues, clean your camera lens and ensure adequate lighting (natural light works best).</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>App is crashing or freezing</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Try these steps: 1) Force close the app and reopen, 2) Restart your device, 3) Check for app updates in the App Store/Play Store, 4) Clear cache (Settings > Storage > Clear Cache on Android; offload and reinstall on iOS). If problems continue, contact support with your device model and OS version.</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>Barcode scanner not recognizing foods</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Hold steady and ensure the barcode is well-lit and fits within the frame. Some glossy packaging reflects light—try tilting the package slightly. If the barcode still won't scan, you can manually search for the product name or enter nutrition facts manually.</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>Data not syncing between devices</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">Ensure you're signed into the same account on all devices. Check that sync is enabled in Settings > Account > Sync Data. Force a manual sync by pulling down on the home screen. If using cellular data, ensure "Sync on Mobile Data" is enabled in settings.</div>
+                        </div>
+                        <div class="faq-item" onclick="toggleFaq(this)">
+                            <div class="faq-question"><span>Battery drain issues</span><svg class="faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                            <div class="faq-answer">AI photo analysis is processing-intensive. To save battery: disable background app refresh for NutriLens, use manual sync instead of auto-sync, and reduce camera resolution in Settings > Advanced > Camera Quality (select "Optimized" instead of "High").</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="help-section-title">Still Need Help?</div>
+            <div class="contact-options">
+                <div class="contact-card" onclick="contactSupport()">
+                    <div class="contact-icon"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+                    <div class="contact-info"><div class="contact-title">Live Chat</div><div class="contact-desc">Average response: 2 minutes</div></div>
+                    <svg class="contact-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+                <div class="contact-card" onclick="emailSupport()">
+                    <div class="contact-icon" style="background: #E0E7FF;"><svg viewBox="0 0 24 24" style="stroke: #4F46E5;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
+                    <div class="contact-info"><div class="contact-title">Email Support</div><div class="contact-desc">help@nutrilens.ai</div></div>
+                    <svg class="contact-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+            </div>
+            <div class="system-status"><div class="status-indicator online"></div><span>All systems operational</span><button class="status-btn" onclick="checkStatus()">Check Status</button></div>
+            <div style="padding: 32px 24px; text-align: center; color: var(--text-tertiary); font-size: 13px;">NutriLens v1.0 • Build 2026.3.29<br><span style="margin-top: 4px; display: block;">© 2026 NutriLens Inc.</span></div>
+        </div>
+
+        <!-- PAYWALL -->
+        <div class="paywall-overlay" id="paywall">
+            <div class="paywall-sheet">
+                <div class="paywall-header">
+                    <div class="paywall-icon"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+                    <div class="paywall-title">Go Pro</div>
+                    <div class="paywall-subtitle">Unlock unlimited scans and premium features</div>
+                </div>
+                <div class="price-block">
+                    <div class="price">$39.99</div>
+                    <div class="price-period">per year ($3.33/month)</div>
+                    <div class="price-save">Save 40% vs monthly</div>
+                </div>
+                <div class="features-list">
+                    <div class="feature-row"><div class="feature-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="feature-text">Unlimited AI photo scans</div></div>
+                    <div class="feature-row"><div class="feature-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="feature-text">Remove all advertisements</div></div>
+                    <div class="feature-row"><div class="feature-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="feature-text">Advanced security features</div></div>
+                    <div class="feature-row"><div class="feature-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="feature-text">Export data & recovery codes</div></div>
+                    <div class="feature-row"><div class="feature-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="feature-text">Family plan (up to 6 members)</div></div>
+                </div>
+                <button class="btn-upgrade" onclick="upgradePro()">Start Free Trial</button>
+                <button class="btn-cancel" onclick="hidePaywall()">Continue with Free</button>
+                <p style="text-align: center; font-size: 12px; color: var(--text-tertiary); margin-top: 16px;">7-day free trial • Cancel anytime</p>
+            </div>
+        </div>
+
+        <!-- BOTTOM NAV -->
+        <div class="bottom-nav" id="bottom-nav" style="display: none;">
+            <button class="nav-item active" onclick="switchTab('home')">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                <span>Home</span>
+            </button>
+            <button class="nav-item" onclick="showToast('Trends coming soon')">
+                <svg class="nav-icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+                <span>Trends</span>
+            </button>
+            <button class="nav-item" onclick="switchTab('settings')">
+                <svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>Settings</span>
+            </button>
+        </div>
+
+        <!-- FAB -->
+        <button class="fab" id="fab" onclick="scanMeal()" style="display: none;">
+            <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
+
+        <!-- TOAST -->
+        <div class="toast" id="toast">Notification</div>
+    </div>
+
+    <script>
+        // Generate floating food emojis
+        const foods = ['🥗', '🥑', '🍳', '🥩', '🍎', '🥦', '🍗', '🥕', '🍚', '🥜', '🍤', '🥗'];
+        const foodContainer = document.getElementById('foodParticles');
+        for (let i = 0; i < 15; i++) {
+            const food = document.createElement('div');
+            food.className = 'food-item';
+            food.textContent = foods[i % foods.length];
+            food.style.left = Math.random() * 100 + '%';
+            food.style.animationDelay = Math.random() * 15 + 's';
+            food.style.animationDuration = (15 + Math.random() * 10) + 's';
+            foodContainer.appendChild(food);
+        }
+
+        let scansLeft = 1;
+        let isPro = false;
+
+        function startApp() {
+            document.getElementById('welcome-screen').classList.remove('active');
+            document.getElementById('home-screen').classList.add('active');
+            document.getElementById('bottom-nav').style.display = 'flex';
+            document.getElementById('fab').style.display = 'flex';
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(tab + '-screen').classList.add('active');
+            if (tab === 'home') document.querySelectorAll('.nav-item')[0].classList.add('active');
+            else if (tab === 'settings') document.querySelectorAll('.nav-item')[2].classList.add('active');
+        }
+
+        function goBack() {
+            document.getElementById('help-screen').classList.remove('active');
+            document.getElementById('settings-screen').classList.add('active');
+        }
+
+        function scanMeal() {
+            if (scansLeft <= 0 && !isPro) {
+                showPaywall();
+                return;
+            }
+            scansLeft--;
+            if (scansLeft === 0) {
+                document.querySelector('.limit-banner').style.background = '#FEE2E2';
+                document.querySelector('.limit-text').innerHTML = `<svg viewBox="0 0 24 24" style="width: 20px; height: 20px; stroke: #92400E; stroke-width: 2; fill: none;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>No scans remaining</span>`;
+            } else {
+                document.querySelector('.limit-text span').textContent = scansLeft + ' of 3 free scans remaining';
+            }
+            showToast('Scanning meal... 420 calories logged');
+        }
+
+        function showPaywall() {
+            document.getElementById('paywall').classList.add('show');
+        }
+
+        function hidePaywall() {
+            document.getElementById('paywall').classList.remove('show');
+        }
+
+        function upgradePro() {
+            isPro = true;
+            hidePaywall();
+            document.querySelector('.ad-banner').style.display = 'none';
+            document.querySelector('.limit-banner').style.display = 'none';
+            showToast('Upgraded to Pro! Welcome.');
+        }
+
+        function copySecurityEmail() {
+            navigator.clipboard.writeText('security@nutrilens.ai');
+            showToast('security@nutrilens.ai copied');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // Help Center Functions
+        function toggleCategory(header) {
+            const category = header.parentElement;
+            const isExpanded = category.classList.contains('expanded');
+            document.querySelectorAll('.faq-category').forEach(cat => cat.classList.remove('expanded'));
+            if (!isExpanded) category.classList.add('expanded');
+            if (navigator.vibrate) navigator.vibrate(10);
+        }
+
+        function toggleFaq(item) {
+            const isActive = item.classList.contains('active');
+            const category = item.closest('.faq-category');
+            category.querySelectorAll('.faq-item').forEach(faq => faq.classList.remove('active'));
+            if (!isActive) {
+                item.classList.add('active');
+                if (navigator.vibrate) navigator.vibrate(5);
+            }
+        }
+
+        function searchHelp() {
+            const input = document.getElementById('helpSearchInput');
+            const filter = input.value.toLowerCase();
+            const clearBtn = document.getElementById('searchClear');
+            const categories = document.querySelectorAll('.faq-category');
+
+            clearBtn.style.display = filter.length > 0 ? 'flex' : 'none';
+
+            if (filter.length === 0) {
+                categories.forEach(cat => {
+                    cat.classList.remove('hidden', 'expanded');
+                    cat.querySelectorAll('.faq-item').forEach(item => {
+                        item.classList.remove('active');
+                        item.style.display = 'block';
+                        item.querySelector('.faq-question span').innerHTML = item.querySelector('.faq-question span').textContent;
+                        item.querySelector('.faq-answer').innerHTML = item.querySelector('.faq-answer').textContent;
+                    });
+                });
+                document.querySelectorAll('.no-results').forEach(el => el.remove());
+                return;
+            }
+
+            let hasResults = false;
+            categories.forEach(category => {
+                const items = category.querySelectorAll('.faq-item');
+                let categoryHasMatch = false;
+                items.forEach(item => {
+                    const question = item.querySelector('.faq-question span');
+                    const answer = item.querySelector('.faq-answer');
+                    const questionText = question.textContent.toLowerCase();
+                    const answerText = answer.textContent.toLowerCase();
+
+                    if (questionText.includes(filter) || answerText.includes(filter)) {
+                        item.style.display = 'block';
+                        categoryHasMatch = true;
+                        hasResults = true;
+                        const regex = new RegExp(`(${filter})`, 'gi');
+                        question.innerHTML = question.textContent.replace(regex, '<span class="highlight">$1</span>');
+                        answer.innerHTML = answer.textContent.replace(regex, '<span class="highlight">$1</span>');
+                        if (questionText.includes(filter)) {
+                            item.classList.add('active');
+                            category.classList.add('expanded');
+                        }
+                    } else {
+                        item.style.display = 'none';
+                        question.innerHTML = question.textContent;
+                        answer.innerHTML = answer.textContent;
+                    }
+                });
+                category.classList.toggle('hidden', !categoryHasMatch);
+                category.classList.toggle('expanded', categoryHasMatch);
+            });
+
+            const existingNoResults = document.querySelector('.no-results');
+            if (!hasResults && !existingNoResults) {
+                const noResults = document.createElement('div');
+                noResults.className = 'no-results';
+                noResults.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="8" x2="14" y2="14"/></svg><div class="no-results-title">No results found</div><div>Try different keywords or contact support</div>`;
+                document.getElementById('faqContainer').appendChild(noResults);
+            } else if (hasResults && existingNoResults) {
+                existingNoResults.remove();
+            }
+        }
+
+        function clearSearch() {
+            const input = document.getElementById('helpSearchInput');
+            input.value = '';
+            searchHelp();
+            input.blur();
+        }
+
+        function contactSupport() {
+            showToast('Connecting to support agent...');
+            setTimeout(() => showToast('Agent connected: Hi! How can I help?'), 1500);
+        }
+
+        function emailSupport() {
+            window.location.href = 'mailto:help@nutrilens.ai?subject=Support%20Request';
+        }
+
+        function resetPassword() {
+            showToast('Password reset link sent to your email');
+        }
+
+        function checkStatus() {
+            showToast('All systems operational ✓');
+        }
+    </script>
+</body>
+</html>
